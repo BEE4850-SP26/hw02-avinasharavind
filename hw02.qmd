@@ -1,6 +1,8 @@
 ---
 title: "Homework 2: Probability Models"
 subtitle: "BEE 4850/5850"
+date: "02-20-2026"
+author: "Avinash Aravind, aa2476"
 format:
     html:        
         warning: true
@@ -10,6 +12,10 @@ format:
         warning: true
         error: true
         keep-tex: true
+        fig-pos: "h"
+        toc: true
+        toc-depth: 3
+        toc-title: Contents
         fig-format: svg    
         include-in-header: 
             text: |
@@ -24,6 +30,8 @@ format:
                 breaklines
                 % Note: setting commandchars=\\\{\} here will cause an error 
                 }
+        margin-bottom: "30mm"
+        margin-top: "30mm"
     ipynb:
         warning: true
         error: true
@@ -34,158 +42,167 @@ format-links: [pdf]
 freeze: false
 ---
 
-::: {.content-visible when-format="ipynb"}
-**Name**:
-
-**ID**:
+::: {.callout-note}
+All of the code used in this homework is accessible in the hw02.ipynb file in my GitHub repository. Note that this is different to last week where all of the code was in the .qmd file.
 :::
-
-::: {.callout-important icon=false}
-### Due Date
-
-Friday, 2/20/26, 9:00pm
-:::
-
-::: {.content-visible unless-format="ipynb"}
-:::{.callout-tip}
-
-To do this assignment in Julia, you can find a Jupyter notebook with an appropriate environment in [the homework's Github repository]({{< var github_org.repo >}}/hw02). Otherwise, you will be responsible for setting up an appropriate package environment in the language of your choosing. Make sure to include your name and NetID on your solution.
-:::
-:::
-
-## Overview
-
-::: {.cell .markdown}
-
-### Instructions
-
-The goal of this homework assignment is to practice developing and working with probability models for data.
-
-* Problem 1 asks you to fit some linear regressions to Chicago mortality data.
-* Problem 2 asks you to analyze the probability of Cayuga Lake freezing using a logistic regression model.
-* Problem 3 asks you to use Poisson regression to predict salamander counts based on environmental data.
-* Problem 4 asks you to look at the impact of the gender of hurricane names on deaths^[Yes, seriously. Ish. Trust me, I know.].
-:::
-
-
-::: {.cell .markdown}
-### Load Environment
-
-The following code loads the environment and makes sure all needed packages are installed. This should be at the start of most Julia scripts.
-
-:::
-
-```{julia}
-#| output: false
-
-import Pkg
-Pkg.activate(@__DIR__)
-Pkg.instantiate()
+```{=latex}
+\newpage
 ```
+# Problem 1: Chicago Deaths & Linear Regression
+### Problem 1.1
 
-::: {.cell .markdown}
-The following packages are included in the environment (to help you find other similar packages in other languages). The code below loads these packages for use in the subsequent notebook (the desired functionality for each package is commented next to the package).
+::: {#fig-11 layout-nrow=2}
+![pm25 Density vs. Daily Deaths](/figs/1_1_pm25.png){#fig-pm25 height=2.5in}
 
+![SO2 Concentration vs. Daily Deaths](/figs/1_1_so2.png){#fig-so2 height=2.5in}
+
+![O3 Concentration vs. Daily Deaths](/figs/1_1_o3.png){#fig-o3 height=2.5in}
+
+![Mean Daily Temperature vs. Daily Deaths](/figs/1_1_temp.png){#fig-temp height=2.5in}
+
+Relationships between daily observed values of
+(a) pm~25~ ; (b) SO~2~ ; (c) O~3~ ; (d) Mean Daily Temperature 
+and the daily number of deaths in Chicago.
 :::
 
-```{julia}
-#| output: false
+Most of the bivariate relationships do not appear very strong, if they exist at all. @fig-pm25 appears to show a very slight positive linear relationship between pm~25~ density and daily deaths, but there are many missing data points for this predictor variable, making it difficult to examine the relationship. @fig-so2 appears to show little to no relationship between SO~2~ concentration and daily deaths, and @fig-o3 shows a similarly small relationship; for both of these predictors, the number of deaths does not appear to increase or decrease much as the predictor increases. Finally, @fig-temp appears to show a linear, negative bivariate relationship between temperature and daily deaths, with the exception of several high outliners during the 1995 Chicago Heat Wave[^1]. Temperature is probably most appropriate for a linear regression model given its visually apparent nonzero linear trend.
 
-using Random # random number generation and seed-setting
-using DataFrames # tabular data structure
-using CSV # reads/writes .csv files
-using Distributions # interface to work with probability distributions
-using Plots # plotting library
-using StatsBase # statistical quantities like mean, median, etc
-using StatsPlots # some additional statistical plotting tools
-using Optim # optimization tools
-using LaTeXStrings # latex formatting for plot strings
+[^1]: <https://www.weather.gov/lot/1995_HeatWave> 
+
+
+```{=latex}
+\newpage
 ```
+### Problem 1.2
 
-## Problems
+The Gaussian-error linear regression model being fit in this problem is:
+$$
+y_{\text{deaths}} = \beta_{0} + \beta_{1}\cdot x_{tmpd} + \varepsilon_{i}
+$$
+Where the error is:
+$$ \varepsilon \sim N(0,\sigma^{2}) $$
+Using Julia's `Optim` package to compute the Maximum Likelihood Estimators for this linear regression model with `tmpd` as the predictor and `death` as the response variable, the regression coefficients and error variance are:
+$$\beta_{0} = 129.96 \qquad \beta_{1} = -0.28964 \qquad \sigma^{2} = 202.32$$
+In the context of this problem, $\beta_{0}$ implies the model predicted number of deaths when the temperature is 0°F is about 130, and $\beta_{1}$ implies the expected difference in deaths is about -0.3 when the temperature differs by 1°F. 
 
-
-### Problem 1 (6 points)
-
-Let's revisit the `chicago` dataset from HW1 (found in `data/chicago.csv`). We will look at the relationship of the potential predictor variables `pm25median` (the median density of smaller pollutant particles), `o3median` (the median concentration of O$_3$), `so2median` (the median concentration of SO$_2$), and `tmpd` (mean daily temperature) with the variable we would like to predict, `death` (the number of non-accidental deaths on that day).
-
-#### Problem 1.1
-
-Plot each predictor variable against the response variable (make sure to include labels and titles for each plot). Describe what you observe about the bivariate relationships, if one exists (*e.g.* does it look like they exist, are they linear, positive/negative, etc.) Does a linear regression seem appropriate from any of these plots? Which predictor do you think is most appropriate for a linear regression model and why?
-
-#### Problem 1.2
-
-You decide to focus on the relationship between `tmpd` and `death`. Your classmate suggests that you use a Gaussian-error linear regression model. Based on this suggestion, calculate the regression coefficients and error variance. Explain the interpretation of the coefficients that you obtain **in this specific problem context**. 
-
-#### Problem 1.3
-
-Add your fitted regression line and a 90% prediction interval to your scatterplot of `tmpd` and `death`. Using this and any other diagnostics, do you agree with the Gaussian-error linear model assumption? Why or why not?
-
-### Problem 2 (6 points)
-
-This problem is adapted from Example 4.1 and 4.2 in Daniel Wilks' *Statistical Methods in the Atmospheric Sciences*. Updating the table in that book, Cayuga Lake has frozen in 1796, 1816, 1856, 1875, 1884, 1904, 1912, 1934, 1961, 1979, and 2015^[Many of these dates, particularly prior to the 20th century, are subject to some debate, and would be different depending on the data source. Nevertheless, let's use this dataset.]. The probability of whether a severe enough cold spell to freeze the lake occurs is related to changes in global mean temperature. The file `data/HadCRUT5.1Analysis_gl.txt` contains estimates of monthly global mean temperature anomalies (in $^\circ$ C, relative to the 1961--1990 mean) as well as the annual global temperature anomaly. You would like to build a model to predict the probability that Cayuga Lake freezes based on the winter (DJF) temperature anomaly.
-
-#### Problem 2.1
-
-Write down a logistic regression model for the probability that Cayuga Lake freezes in a given winter. Encode the occurrence of freezing as a 1, and non-freezing as 0. Load the temperature data and fit this model. The format of the data file is a little awkward, as the even rows are the number of stations (which should be ignored) and have uneven number of space delimiters. The first 13 columns are the year and the monthly means; the final column is the annual average (which we don't want to use). Another complication is that the (even-numbered) station rows don't have an entry in the 14th column. In Julia, you can load the file with
-
-```julia
-temp_dat = CSV.read("data/HadCRUT5.1Analysis_gl.txt", delim=" ", 
-    ignorerepeated=true, header=false, 
-    silencewarnings=true, DataFrame) 
+```{=latex}
+\newpage
 ```
+### Problem 1.3
 
-To simplify the analysis, since we don't always know whether the lake froze in the January starting a year or the December ending a year, let's assume that the years in which the lake froze correspond to the winter starting the year (so the DJF mean corresponding to the freezing in 1884 would include the December from 1883 and the January and February from 1884). You will only be able to use freezing events between 1851 and the present day due to the temperature data. Interpret the coefficients from your model fit **in this specific problem context**.
+![Mean Daily Temperature vs. Daily Deaths, with Gaussian-error linear regression.](figs/1_3_scatter.png){#fig-tmpd-fit width=4.5in}
 
-#### Problem 2.2
+Yes, I generally agree with the Gaussian-error linear model assumption. Looking at the scatterplot in @fig-tmpd-fit and the 90% confidence interval on the regression fit, the majority of observations fit within the confidence interval, and those that do not generally lie close to it on either side. We can confirm this by looking at the distribution of residuals, shown below in @fig-13.
 
-Plot the modeled probability of freezing as a function of the DFJ temperature anomaly, and how this probability has changed over time. Does this model seem reasonable? How might you determine this?
+::: {#fig-13 layout-ncol=2}
 
-#### Problem 2.3
+![Histogram of Residuals](figs/1_3_hist.png){#fig-resid width=3in}
 
-What winter temperature anomaly would be required for less than a 1% probability of Cayuga Lake freezing?
+![Zoomed Histogram](figs/1_3_zoom.png){#fig-zoom width=3in}
 
-### Problem 3 (6 points)
+Histogram of residuals for temperature/death linear regression model. Full histogram with oultiers (left) is zoomed in to highlight distribution shape (right). 
+:::
 
-The file `data/salamanders.csv` contains counts of salamanders from 47 different plots of the same area in California, as well as the percentage of ground cover and age of the forest in the plot. You would like to see if you can use these data to predict the salamander counts with a Poisson regression.
+Again with the exception of the high outliers, the distribution of residuals is generally Normal, suggesting a Gaussian error assumption is valid. However, the outliers cannot simply be ignored, and the relative inability of the model to capture the possibility of extreme events should be noted.
 
-#### Problem 3.1
-
-Write down and fit a Poisson regression model for salamander counts using the percentage of ground cover as a predictor. You may need to standardize the predictors as they are much larger than the counts, which you can do using the following function (or its equivalent):
-
-```{julia}
-stdz(x) = (x .- mean(x)) / std(x) # <1>
+```{=latex}
+\newpage
 ```
-1. This function makes it convenient to standardize when we fit the models, rather than changing the data itself.
+# Problem 2: Cayuga Lake Freezes & Logistic Regression
+### Problem 2.1
 
-#### Problem 3.2 
+The logistic regression model being fit in this problem for the probability that Cayuga Lake freezes in a given winter is:
+$$ y_{i} \sim \text{Bernoulli}(p_{i}) $$
+$$ \text{logit}(p_{i}) = \text{log}(\frac{p_{i}}{1-p_{i}}) = \beta_{0} + \beta_{1} \cdot x_{\text{DJF-Mean}}
+$$
+Once again using Julia's `Optim` package to compute the MLE values for $\beta_{0}$ and $\beta_{1}$, the regression coefficients are:
+$$ \beta_{0} = -3.018 \qquad \beta_{1} = -0.7296 $$
+Taking the exponent of the coefficients to aid in their interpretation:
+$$ \text{exp}(\beta_{0}) = 0.04891 \qquad \text{exp}(\beta_{1}) = 0.4821 $$
+In the context of this problem, $\text{exp} (\beta_{1})$ implies the modeled probability of classifying a Cayuga Lake freeze is 0.4821 times more likely (around half as likely) for a 1°C increase in DJF mean temperature anomaly.
 
-Plot the expected counts and 90% prediction intervals from your model (based on 1,000 simulations from the model) along with the data. How well does the model predict the observed counts? In what ways does it do a good or bad job?
+```{=latex}
+\newpage
+```
+### Problem 2.2
 
-#### Problem 3.3
+::: {#fig-cayuga layout-ncol=2}
 
-Can you improve the model by including forest age as a predictor? How did you determine whether this helps or does not help with prediction?
+![Probability of freezing vs. DJF temp. anomaly](figs/2_1.png){#fig-logreg width=3in}
 
-### Problem 4 (7 points)
+![Probability of freezing vs. Year](figs/2_2.png){#fig-years width=3in}
 
+The modeled probability of Cayuga Lake freezing vs. DJF temperature anomaly (left), and the implied probability of freezing vs. year (right) based on the recorded temperature anomaly in those years.
+:::
 
-In 2014, [a paper was published in a prestigious journal](https://www.pnas.org/doi/10.1073/pnas.1402786111) which claimed that hurricanes with more feminine names are deadlier than hurricanes with more masculine names because people take warnings about female-named hurricanes less seriously^[This paper has become a bit of a joke among statisticians, but let's take the hypothesis seriously for this problem's sake.]. The file `data/Hurricanes.csv` contains the original data used in this analysis (note that this dataset excludes Hurricanes Katrina and Audrey because they were "outliers"). While we won't replicate the specific analysis in this paper, let's use the data to look at this hypothesis.
+The model does seem mostly reasonable, showing an increase in the probability of Cayuga Lake freezing over with a more negative temperature anomaly but still a relatively low probability as there are many more years that did not have a freeze than ones that did. One can also check the validity of the model by simulating 175 seasons under the model (the number of years in the dataset) and counting the number of freezes that the model predicts. This logistic regression model predicts about 9 freezes in that 175 year span, matching the 9 freezes observed between 1851 and 2025.
 
-#### Problem 4.1 
+### Problem 2.3
 
-One might interpret the hypothesis to claim that the impact of the name is strengthened by the the more powerful. A measure of hurricane strength is its minimum pressure (`min_pressure` in the dataset). Fit a Poisson regression model that predicts deaths (`deaths`) using the gender of the name (`female`) and minimum pressure (you may need to standardize the pressure). We use `female` instead of the continuous measure of the `femininity` of the name as this is highly subjective and has some weird coding (such as "Sandy" being coded as one of the most female names).
+The logistic regression model relates the logit of the probability of Cayuga Lake freezing to the winter temperature anomaly as:
+$$ \text{logit}(p_{i}) = \text{log}(\frac{p_{i}}{1-p_{i}}) = \beta_{0} + \beta_{1} \cdot x_{\text{DJF-Mean}} $$
+We can rearrange this equation to solve for $x_{\text{DJF-Mean}}$ for a given $p_{i}$, and then substitute in $p_{i} = 0.01$ and our MLE values for $\beta_{0}$ and $\beta_{1}$:
+$$ x_{\text{DJF-Mean}} = \frac{(\text{log}(\frac{0.1}{1-0.1}) - \beta_{0})}{\beta_{1}} = 2.162$$
+Thus, the modeled winter temperature anomaly required for a less than 1% probability of Cayuga Lake freezing is 2.162°C. 
 
-#### Problem 4.2
+```{=latex}
+\newpage
+```
+# Problem 3: Salamanders and Poisson Regression
+### Problem 3.1
+The Poisson regression model being fit in this problem with percentage of ground cover as the predictor and salamander count as the response variable is:
+$$ y_{i} \sim \text{Poisson}(\lambda_{i}) $$
+$$ \lambda_{i} = \text{exp}(\beta_{0} + \beta_{1}\cdot x_{\text{std-pct-cover}}) $$
+Where $x_{\text{std-pct-cover}}$ represents the standardized values of the percentage of ground cover. Once again using Julia's `Optimize` package to find the MLE values for $\beta_{0}$ and $\beta_{1}$, we have:
+$$ \beta_{0} = 0.4295 \qquad \beta_{1} = 1.160 $$
+Since $\text{exp}(1.160) = 3.190$, $\beta_{1}$ implies that for a 1 standard deviation increase in percentage of ground cover, the model expected number of salamanders increases by a factor of over 3.
 
-Interpret the results by generating 10,000 counterfactual simulations for hurricanes with male and female names. Plot the expected values and 90% prediction intervals from these two sets of simulations and compare with the observed storm deaths. Where does the model do well or not well? 
+```{=latex}
+\newpage
+```
+### Problem 3.2 
+![Standardized Ground Cover vs. Salamander Count and Poisson Regression Fit, 90% Confidence Interval](figs/3_2.png){#fig-sal width=4.5in}
 
-#### Problem 4.3
+The model predicts the observed counts relatively well, with most of the data values falling within the 90% CI. The model does a good job of predicting the increase in salamander counts when the ground cover percentage is above the mean, increasing relatively quickly for large standard values. However, the model does underpredict some of the highest salamander count data points, failing to capture them within the 90% CI. 
 
-Does the gender effect size resulting from this model seem reasonable to you? Draw on qualitative or quantitative assessments to justify your assessment of reasonableness.
+### Problem 3.3
+No, including forest age as a predictor does not meaningfully improve the model. I determined this by calculating the mean square error of a model without and with forest age as a predictor:
+$$ MSE = \frac{1}{n} \sum_{i} (y_{i} - \theta \cdot x_{i})^{2} 
+$$
+Where $n$ is the number of data points, $\theta = [\beta_{0}, \beta_{1}, (\beta_{2})]$ and $x_{i} = [1, \text{pct-cover}, (\text{fst-age})]$, and the items in parentheses are included in one model but not the other. 
 
-#### Problem 4.4
+The model without forest age had an MSE of 8.2053, and the model with forest age had an MSE of 8.2049. Thus, the model was not really improved by the inclusion of forest age as a predictor.
 
-We can now stop taking this hypothesis seriously. To what extent do you think the finding could be an artifact of the dataset (e.g. there is no actual effect, but there are coincidental features of the data that produce the result that female-named storms are more deadly than male-named storms)? Justify this conclusion with specific reference to an exploratory analysis of the data.
+```{=latex}
+\newpage
+```
+# Problem 4: Hurricane Misogyny and Poisson Regression
+### Problem 4.1 
 
+The Poisson regression model being fit in this problem with `min_pressure` and `female` as the predictors and `deaths` as the response variable is:
+$$ y_{i} \sim \text{Poisson}(\lambda_{i}) $$
+$$ \lambda_{i} = \text{exp}(\beta_{0} + \beta_{1}\cdot x_{\text{female}} + \beta_{2}\cdot x_{\text{std-min-pressure}}) $$
+Where $x_{\text{std-min-pressure}}$ represents the standardized values of the minimum sea level pressure of the hurricane. Using Julia's `Optimize` package to find the MLE values for $\beta_{0}$, $\beta_{1}$, and $\beta_{2}$, we find the regression coefficients as:
+$$\beta_{0} = 2.415 \qquad \beta_{1} = 0.4721 \qquad \beta_{2} = -0.7195$$
+Since $\text{exp}(0.4721) = 1.603$, $\beta_{1}$ implies that for a female named storm, the model expected number of deaths changes by a factor of about 1.6. Similarly, since $\text{exp}(-0.7195) = 0.4870$, $\beta_{2}$ implies that for an increase in minimum sea level pressure of 1 standard deviation, the model expected number of deaths changes by a factor of about 0.5. 
 
-## References
+### Problem 4.2
+
+![Poissson regression for Sea Level Pressure vs. deaths with gender of name as additional predictor.](figs/4_2.png){#fig-hurricanes width=4.5in}
+
+The model does well with most storms, predicting an increase in deaths for storms with a lower than mean standardized minimum pressure (stronger storms). However, the model does not capture some high outliers in terms of number of deaths, all of which are female-named storms.
+
+```{=latex}
+\newpage
+```
+### Problem 4.3
+No, the gender effect size does not seem reasonable to me. Qualitatively, there does not appear to be a major difference between the deaths caused male and female named storms in the scatterplot, with the exception of the high outliers mentioned in the previous section.
+
+### Problem 4.4
+By performing an exploratory analysis on the relationship between hurricane deaths and year, the extend of the finding as an artifact of the dataset becomes more apparent:
+
+![Hurricane deaths vs. Year, color-coded by name gender.](figs/4_4.png){#fig-gender width=4.5in}
+
+From 1953 to 1978, the U.S. National Hurricane Center (NHC) used exclusively female names for hurricanes in the North Atlantic[^2]. Since then, the World Meteorological Organization (WMO) has maintained rotating lists that alternate between male and female names. As a result, there are 62 female names in the dataset compared to only 30 male names. Additionally, as safety standards, public awareness, and forecasting have made significant strides over time, the likelihood of a storm producing a very high number of deaths has generally decreased. Of the four storms with over 100 deaths in @fig-hurricanes, three of them occured during the period when only female names were used (as seen in @fig-gender). Thus, the supposed increase in deaths for female-named hurricanes is most likely an artifact of the dataset, and specifically an artifact of the history of naming tropical cyclones in the North Atlantic.
+
+[^2]: <https://www.nhc.noaa.gov/aboutnames_history.shtml>, specifically the second half of the "History of Hurricane Names" section
